@@ -144,6 +144,8 @@ HAZELCAST_REQUIRED = [
     "hazelcast-python-client>=5.1",
 ]
 
+SINGLESTORE_REQUIRED = ["mysqlclient", "pymysql", "types-PyMySQL"]
+
 CI_REQUIRED = (
     [
         "build",
@@ -202,6 +204,7 @@ CI_REQUIRED = (
     + AZURE_REQUIRED
     + ROCKSET_REQUIRED
     + HAZELCAST_REQUIRED
+    + SINGLESTORE_REQUIRED
 )
 
 
@@ -369,6 +372,7 @@ setup(
         "cassandra": CASSANDRA_REQUIRED,
         "hazelcast": HAZELCAST_REQUIRED,
         "rockset": ROCKSET_REQUIRED,
+        "singlestore": SINGLESTORE_REQUIRED,
     },
     include_package_data=True,
     license="Apache",
