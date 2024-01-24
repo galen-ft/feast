@@ -144,7 +144,7 @@ HAZELCAST_REQUIRED = [
     "hazelcast-python-client>=5.1",
 ]
 
-SINGLESTORE_REQUIRED = ["mysqlclient", "pymysql", "types-PyMySQL"]
+SINGLESTORE_REQUIRED = ["pymysql", "types-PyMySQL"]
 
 CI_REQUIRED = (
     [
