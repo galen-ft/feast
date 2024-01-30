@@ -190,12 +190,10 @@ class SingleStoreOnlineStore(OnlineStore):
                     value BLOB,
                     event_ts timestamp NULL DEFAULT NULL,
                     created_ts timestamp NULL DEFAULT NULL,
-                    PRIMARY KEY(entity_key, feature_name))"""
+                    PRIMARY KEY(entity_key, feature_name),
+                    INDEX {_table_id(project, table)}_ek (entity_key))"""
                 )
 
-                cur.execute(
-                    f"ALTER TABLE {_table_id(project, table)} ADD INDEX {_table_id(project, table)}_ek (entity_key);"
-                )
             for table in tables_to_delete:
                 _drop_table_and_index(cur, project, table)
 
