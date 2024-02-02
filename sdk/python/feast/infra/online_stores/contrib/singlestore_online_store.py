@@ -7,15 +7,17 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pymysql
 import pytz
+from pydantic import StrictStr
+from pymysql.connections import Connection
+from pymysql.cursors import Cursor
+from pymysql.err import InterfaceError
+
 from feast import Entity, FeatureView, RepoConfig
 from feast.infra.key_encoding_utils import serialize_entity_key
 from feast.infra.online_stores.online_store import OnlineStore
 from feast.protos.feast.types.EntityKey_pb2 import EntityKey as EntityKeyProto
 from feast.protos.feast.types.Value_pb2 import Value as ValueProto
 from feast.repo_config import FeastConfigBaseModel
-from pydantic import StrictStr
-from pymysql.connections import Connection
-from pymysql.cursors import Cursor
 
 
 class SingleStoreOnlineStoreConfig(FeastConfigBaseModel):
@@ -41,21 +43,29 @@ class SingleStoreOnlineStore(OnlineStore):
 
     _conn: Optional[Connection] = None
 
-    @contextlib.contextmanager
-    def _get_conn(self, config: RepoConfig) -> Connection:
+    def _init_conn(self, config: RepoConfig) -> Connection:
         online_store_config = config.online_store
         assert isinstance(online_store_config, SingleStoreOnlineStoreConfig)
 
+        return pymysql.connect(
+            host=online_store_config.host or "127.0.0.1",
+            user=online_store_config.user or "test",
+            password=online_store_config.password or "test",
+            database=online_store_config.database or "feast",
+            port=online_store_config.port or 3306,
+            autocommit=True,
+        )
+
+    def _get_cursor(self, config: RepoConfig) -> Any:
+        # This will try to reconnect also.
+        # In case it fails, we will have to create a new connection.
         if not self._conn:
-            self._conn = pymysql.connect(
-                host=online_store_config.host or "127.0.0.1",
-                user=online_store_config.user or "test",
-                password=online_store_config.password or "test",
-                database=online_store_config.database or "feast",
-                port=online_store_config.port or 3306,
-                autocommit=True,
-            )
-        yield self._conn
+            self._conn = self._init_conn(config)
+        try:
+            self._conn.ping(reconnect=True)
+        except InterfaceError:
+            self._conn = self._init_conn(config)
+        return self._conn.cursor()
 
     def online_write_batch(
         self,
@@ -67,7 +77,7 @@ class SingleStoreOnlineStore(OnlineStore):
         progress: Optional[Callable[[int], Any]],
     ) -> None:
         project = config.project
-        with self._get_conn(config) as conn, conn.cursor() as cur:
+        with self._get_cursor(config) as cur:
             insert_values = []
             for entity_key, values, timestamp, created_ts in data:
                 entity_key_bin = serialize_entity_key(
@@ -116,7 +126,7 @@ class SingleStoreOnlineStore(OnlineStore):
     ) -> List[Tuple[Optional[datetime], Optional[Dict[str, ValueProto]]]]:
         project = config.project
         result: List[Tuple[Optional[datetime], Optional[Dict[str, ValueProto]]]] = []
-        with self._get_conn(config) as conn, conn.cursor() as cur:
+        with self._get_cursor(config) as cur:
             keys = []
             for entity_key in entity_keys:
                 keys.append(
@@ -181,7 +191,7 @@ class SingleStoreOnlineStore(OnlineStore):
         partial: bool,
     ) -> None:
         project = config.project
-        with self._get_conn(config) as conn, conn.cursor() as cur:
+        with self._get_cursor(config) as cur:
             # We don't create any special state for the entities in this implementation.
             for table in tables_to_keep:
                 cur.execute(
@@ -204,7 +214,7 @@ class SingleStoreOnlineStore(OnlineStore):
         entities: Sequence[Entity],
     ) -> None:
         project = config.project
-        with self._get_conn(config) as conn, conn.cursor() as cur:
+        with self._get_cursor(config) as cur:
             for table in tables:
                 _drop_table_and_index(cur, project, table)
 
@@ -224,4 +234,3 @@ def _to_naive_utc(ts: datetime) -> datetime:
         return ts
     else:
         return ts.astimezone(pytz.utc).replace(tzinfo=None)
-
