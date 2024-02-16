@@ -14,8 +14,8 @@ from sqlalchemy import (  # type: ignore
     MetaData,
     String,
     Table,
-    create_engine,
     delete,
+    engine_from_config,
     insert,
     select,
     update,
@@ -190,6 +190,42 @@ class SqlRegistryConfig(RegistryConfig):
     """ str: Path to metadata store.
     If registry_type is 'sql', then this is a database URL as expected by SQLAlchemy """
 
+    echo: bool = False
+    """ (optional) bool: If True, the connection pool will log informational output such as when connections are invalidated as well
+    as when connections are recycled to the default log handler, which defaults to sys.stdout for output. If set to
+    the string "debug", the logging will include pool checkouts and checkins. Direct control of logging is also
+    available using the standard Python logging module."""
+
+    max_overflow: int = 10
+    """ (optional) int: The number of connections to allow in connection pool “overflow”, that is connections
+    that can be opened above and beyond the pool_size setting, which defaults to five. this is only used with
+    QueuePool."""
+
+    pool_pre_ping: bool = False
+    """ (optional) bool: boolean, if True will enable the connection pool “pre-ping” feature that tests connections for liveness upon each checkout.
+    For more options see https://docs.sqlalchemy.org/en/20/core/engines.html#engine-creation-api"""
+
+    pool_size: int = 5
+    """" (optional) int: The number of connections to keep open inside the connection pool. This used with QueuePool as well as
+    SingletonThreadPool. With QueuePool, a pool_size setting of 0 indicates no limit; to disable pooling, set poolclass
+    to NullPool instead."""
+
+    pool_recycle: int = -1
+    """ (optional) int: This setting causes the pool to recycle connections after the given number of seconds has passed. It defaults to -1, or no timeout.
+    For example, setting to 3600 means connections will be recycled after one hour. Note that MySQL in particular will disconnect
+    automatically if no activity is detected on a connection for eight hours (although this is configurable with the MySQLDB connection
+    itself and the server configuration as well)."""
+
+    pool_timeout: float = 30
+    """ (optional) int: Number of seconds to wait before giving up on getting a connection from the pool. This is only used
+    with QueuePool. This can be a float but is subject to the limitations of Python time functions which may not
+    be reliable in the tens of milliseconds."""
+
+    pool_use_lifo: bool = False
+    """ (optional) bool: Use LIFO (last-in-first-out) when retrieving connections from QueuePool instead of FIFO (first-in-first-out).
+    Using LIFO, a server-side timeout scheme can reduce the number of connections used during non-peak periods of use. When planning for
+    server-side timeouts, ensure that a recycle or pre-ping strategy is in use to gracefully handle stale connections."""
+
 
 class SqlRegistry(BaseRegistry):
     def __init__(
@@ -199,7 +235,16 @@ class SqlRegistry(BaseRegistry):
         repo_path: Optional[Path],
     ):
         assert registry_config is not None, "SqlRegistry needs a valid registry_config"
-        self.engine: Engine = create_engine(registry_config.path, echo=False)
+        config = {"sqlalchemy.url": registry_config.path,
+                  "sqlalchemy.echo": registry_config.echo,
+                  "sqlalchemy.max_overflow": registry_config.max_overflow,
+                  "sqlalchemy.pool_pre_ping": registry_config.pool_pre_ping,
+                  "sqlalchemy.pool_size": registry_config.pool_size,
+                  "sqlalchemy.pool_recycle": registry_config.pool_recycle,
+                  "sqlalchemy.pool_timeout": registry_config.pool_timeout,
+                  "sqlalchemy.pool_use_lifo": registry_config.pool_use_lifo,
+                  }
+        self.engine: Engine = engine_from_config(config, prefix='sqlalchemy.')
         metadata.create_all(self.engine)
         self.cached_registry_proto = self.proto()
         proto_registry_utils.init_project_metadata(self.cached_registry_proto, project)
