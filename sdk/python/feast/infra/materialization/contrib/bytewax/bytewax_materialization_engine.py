@@ -423,7 +423,7 @@ class BytewaxMaterializationEngine(BatchMaterializationEngine):
                                 "image": "busybox",
                                 "imagePullPolicy": "Always",
                                 "name": "init-hostfile",
-                                "resources": {},
+                                "resources": self.batch_engine_config.resources,
                                 "securityContext": {
                                     "allowPrivilegeEscalation": False,
                                     "capabilities": securityContextCapabilities,
