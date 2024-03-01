@@ -412,14 +412,6 @@ class BytewaxMaterializationEngine(BatchMaterializationEngine):
                         "subdomain": f"dataflow-{job_id}",
                         "imagePullSecrets": self.batch_engine_config.image_pull_secrets,
                         "serviceAccountName": self.batch_engine_config.service_account_name,
-                        "tolerations": [
-                            {
-                                "key": "ft-mlops-nodegroup",
-                                "operator": "Equal",
-                                "value": "FeatureStore",
-                                "effect": "NoSchedule"
-                            }
-                        ],
                         "nodeSelector": {
                             "role": "FeatureStore"
                         },
